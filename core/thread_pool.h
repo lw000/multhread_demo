@@ -103,14 +103,19 @@ private:
 	void* userData;
 };
 
-class ThreadPool : public noncopyable
+typedef struct ThreadPoolOption {
+	BaseLogging* logging;
+
+}ThreadPoolOption;
+
+class ThreadPool final : public noncopyable
 {
 	typedef struct {
 		int need_quit;
 	} ThreadCoreData;
 
 public:
-	ThreadPool(BaseLogging *logging);
+	explicit ThreadPool(const ThreadPoolOption&option);
 	~ThreadPool();
 
 public:
@@ -137,9 +142,10 @@ private:
 
 	ThreadCoreData thread_data;
 
-	BaseLogging* logging;
+	ThreadPoolOption option;
 	std::unique_ptr<std::thread> main_thread;
 
 	WorkThreads work_threads;
 };
 
+ThreadPoolOption WithStdLogging(BaseLogging* logging);

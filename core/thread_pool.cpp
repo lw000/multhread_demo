@@ -98,12 +98,12 @@ void ThreadStdLogging::emptyWait()
 	}
 }
 
-ThreadPool::ThreadPool(BaseLogging* logging) : thread_num(0),
-	logging(logging),
+ThreadPool::ThreadPool(const ThreadPoolOption& option) : thread_num(0),
 	running(0),
 	main_thread(nullptr)
 {
-	thread_data.need_quit = 0;	
+	thread_data.need_quit = 0;
+	this->option.logging = option.logging;
 }
 
 ThreadPool::~ThreadPool() {
@@ -153,13 +153,17 @@ void ThreadPool::postTask(ThreadTask* data) {
 		return;
 	}
 
+	if (thread_data.need_quit == 1) {
+		return;
+	}
+
 	std::unique_lock<std::mutex> lock(this->data_queue_mu);
 	this->data_queue.emplace_back(data);
-	this->cv.notify_one();
+	this->cv.notify_all();
 }
 
 void ThreadPool::run() {
-	logging->debug("Main Thread Is Running");
+	option.logging->debug("Main Thread Is Running");
 	while (1)
 	{
 		ThreadTask* task = nullptr;
@@ -191,13 +195,15 @@ void ThreadPool::run() {
 		}
 	}
 
-	logging->debug("Main Thread Is Leaving");
+	option.logging->debug("Main Thread Is Leaving");
 }
 
 void ThreadPool::work_run() {
-	logging->debug("Work Thread Is Running");
+	option.logging->debug("Work Thread Is Running");
 	while (1)
 	{	
+		auto start = std::chrono::system_clock::now();
+
 		{
 			std::unique_lock<std::mutex> lock(this->work_queue_mu);
 			while (this->work_queue.empty() && this->thread_data.need_quit == 0)
@@ -241,7 +247,17 @@ void ThreadPool::work_run() {
 				abort();
 			}
 		}
+		auto end = std::chrono::system_clock::now();
+		
+		std::cout << std::chrono::duration<double, std::milli>(end - start).count() << std::endl;
 	}
 
-	logging->debug("Work Thread Is Leaving");
+	option.logging->debug("Work Thread Is Leaving");
+}
+
+ThreadPoolOption WithStdLogging(BaseLogging* logging)
+{
+	ThreadPoolOption option{ logging };
+
+	return option;
 }
